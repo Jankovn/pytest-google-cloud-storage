@@ -1,0 +1,59 @@
+[build-system]
+requires = [
+    "setuptools == 80.7.1",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytest-google-cloud-storage"
+version = "1.0.0"
+authors = [
+  { name="Jankovn" },
+]
+description = """
+Pytest custom features, e.g. fixtures and various tests. Aimed to emulate Google Cloud Storage service
+"""
+
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: Unix",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Utilities",
+    "Framework :: Pytest",
+]
+
+dependencies = [
+    "pytest == 8.3.5",
+    "pytest-cov == 6.1.1",
+    "docker == 7.1.0",
+    "pydantic == 2.11.4",
+    "pydantic-settings == 2.9.1",
+    "gcsfs == 2025.5.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/Jankovn/pytest-google-cloud-storage"
+Branches = "https://github.com/Jankovn/pytest-google-cloud-storage/branches"
+Issues = "https://github.com/Jankovn/pytest-google-cloud-storage/issues"
+PR = "https://github.com/Jankovn/pytest-google-cloud-storage/pulls"
+
+# Define modules as pytest plugins
+[project.entry-points.pytest11]
+storage = "pytest_gcs.storage.plugin"
+
+# Ruff
+[tool.ruff]
+line-length = 120
+indent-width = 4
+
+[tool.ruff.lint]
+# https://docs.astral.sh/ruff/rules/
+select = [ "E", "W", "N", "ANN", "ISC", "ICN", "RSE", "RET", "SLF"]

@@ -1,0 +1,2 @@
+polars==1.29.0
+google-cloud-storage==3.1.0
