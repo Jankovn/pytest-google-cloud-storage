@@ -56,4 +56,4 @@ indent-width = 4
 
 [tool.ruff.lint]
 # https://docs.astral.sh/ruff/rules/
-select = [ "E", "W", "N", "ANN", "ISC", "ICN", "RSE", "RET", "SLF"]
+select = [ "E", "W", "N", "ANN", "ISC", "ICN", "RSE", "RET", "SLF", "F"]

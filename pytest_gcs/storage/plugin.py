@@ -3,51 +3,43 @@ import logging
 
 import pytest
 import docker
+import typing
 
 import polars as pl
 
-from _pytest.monkeypatch import MonkeyPatch
 from gcsfs import GCSFileSystem
 from polars import DataFrame
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Generator, Any
 from docker.errors import NotFound
 
+
 from pytest_gcs.storage import logging_strings as logstr
+from pytest_gcs.storage import models
+from pytest_gcs.storage import ctyping
 
 
 PYTEST_STORAGE_LOGGER = logging.getLogger('PYTEST_STORAGE_LOGGER')
 
 
 @pytest.fixture(scope='session')
-def monkeypatch_session() -> MonkeyPatch:
-    m = MonkeyPatch()
-    yield m
-    m.undo()
+def monkeypatch_session() -> ctyping.GMonkeyPatch:
+    with pytest.MonkeyPatch.context() as mp:
+        yield mp
 
 
 @pytest.fixture(scope='function')
-def monkeypatch_function() -> MonkeyPatch:
-    m = MonkeyPatch()
+def monkeypatch_function(monkeypatch: pytest.MonkeyPatch) -> ctyping.GMonkeyPatch:
+    m = pytest.MonkeyPatch()
     yield m
     m.undo()
 
 
 @pytest.fixture(scope='session')
-def bitbucket_env() -> BaseSettings:
-    """ Fixtures only used during CI, in order to tag a bitbucket env. I.e.,
-    - '1': Yes
-    - '0': No
-    """
-    class BitBucketPipelineEnv(BaseSettings):
-        model_config = SettingsConfigDict(case_sensitive=True, env_prefix="BITBUCKET_PIPELINE_")
-        ENV: str = '0'
-
-    yield BitBucketPipelineEnv()
+def cicd_env() -> models.IntegrationDeploymentEnv:
+    return models.IntegrationDeploymentEnv()
 
 
 @pytest.fixture(scope='session', autouse=True)
-def del_google_credential_env(monkeypatch_session: MonkeyPatch) -> Generator:
+def del_google_credential_env(monkeypatch_session: pytest.MonkeyPatch) -> None:
     """
     Deactivate 'GOOGLE_APPLICATION_CREDENTIALS' env var if unintentionally set.
     """
@@ -55,42 +47,20 @@ def del_google_credential_env(monkeypatch_session: MonkeyPatch) -> Generator:
         monkeypatch_session.delenv('GOOGLE_APPLICATION_CREDENTIALS')
     except KeyError:
         PYTEST_STORAGE_LOGGER.warning(logstr.GCP_CREDENTIALS_ENV_VAR_NOT_SET)
-    yield
 
 
 @pytest.fixture(scope='session')
-def storage_env() -> BaseSettings:
+def storage_env() -> models.StorageEnv:
     """ Gather every global variables, used or referred, to google Storage. These variables will act as env vars.
     """
-    class StorageEnv(BaseSettings):
-        model_config = SettingsConfigDict(case_sensitive=True, env_prefix="STORAGE_")
-        PROTOCOL: str = 'gs'
-        # Override with your bucket's name
-        BUCKET_NAME : str = "dummy"
-        # (docker) Absolute path of host joined with relative path to storage represented by the folder 'BUCKET_NAME'
-        MOUNT_ABSOLUTE_PATH: str = f'{os.path.dirname(__file__)}/data/storage'
-        # Common vars used throughout object's lifetime
-        CREDENTIAL_FILENAME: str = 'data/credential.json'
-        CREDENTIAL_FILENAME_RELATIVE_PATH: str = 'data/credential.json'
-        CREDENTIAL_FILENAME_ABSOLUTE_PATH: str = f'{os.path.dirname(__file__)}/data/credential.json'
-        # Template used by Google, with the minimum requirements stored in the json
-        CREDENTIAL_BODY: dict[str, Any] = {
-            "gcs_base_url": "http://localhost:9023",
-            "disable_oauth": True,
-            "private_key_id": "",
-            "private_key": "",
-            "client_email": "",
-            "refresh_token": "",
-            "client_secret": "",
-            "client_id": ""
-        }
-
-    yield StorageEnv()
+    return models.StorageEnv()
 
 
 @pytest.fixture(scope='session')
-def storage_emulator(storage_env: BaseSettings, bitbucket_env: BaseSettings, monkeypatch_session: MonkeyPatch
-                     ) -> Generator:
+def storage_emulator(
+        storage_env: models.StorageEnv,
+        cicd_env: models.IntegrationDeploymentEnv,
+        monkeypatch_session: pytest.MonkeyPatch) -> typing.Generator:
     """ Set a local filesystem in order to emulate Google Cloud Storage service. With docker helps.
 
     Previously we used this package 'gcp-storage-emulator' to emulate the storage service.
@@ -105,9 +75,8 @@ def storage_emulator(storage_env: BaseSettings, bitbucket_env: BaseSettings, mon
     monkeypatch_session.setenv(
         'GOOGLE_SERVICE_ACCOUNT_KEY',
         f"{os.path.dirname(__file__)}/{storage_env.CREDENTIAL_FILENAME_RELATIVE_PATH}")
-    # THE SCOPE BELOW is only triggered if running in local env and not bitbucket pipeline!
     container = None
-    if bitbucket_env.ENV == '0':
+    if cicd_env.ENV == '0':
         docker_client = docker.from_env()
         try:
             docker_client.containers.get('storage_emulator')
@@ -129,8 +98,8 @@ def storage_emulator(storage_env: BaseSettings, bitbucket_env: BaseSettings, mon
 
 
 @pytest.fixture(scope='session')
-def mock_polars_io(monkeypatch_session: MonkeyPatch) -> GCSFileSystem:
-    yield GCSFileSystem(token='anon', endpoint_url=os.environ['STORAGE_EMULATOR_HOST'])
+def mock_polars_io(monkeypatch_session: pytest.MonkeyPatch) -> GCSFileSystem:
+    return GCSFileSystem(token='anon', endpoint_url=os.environ['STORAGE_EMULATOR_HOST'])
 
 
 @pytest.fixture(scope='function')
@@ -140,10 +109,10 @@ def pl_read_parquet() -> pl.io.parquet.functions:
 
 @pytest.fixture(scope='function')
 def mock_read_parquet(
-        monkeypatch_function: MonkeyPatch,
+        monkeypatch_function: pytest.MonkeyPatch,
         pl_read_parquet: pl.io.parquet.functions,
         mock_polars_io: GCSFileSystem,
-        storage_env: BaseSettings) -> Generator:
+        storage_env: models.StorageEnv) -> typing.Generator:
 
     def _read_parquet(path: str, **k: dict) -> pl.DataFrame:
         with mock_polars_io.open(path.removeprefix(f'{storage_env.PROTOCOL}://'), 'rb') as f:
@@ -160,10 +129,10 @@ def df_write_parquet() -> pl.functions:
 
 @pytest.fixture(scope='function')
 def mock_write_parquet(
-        monkeypatch_function: MonkeyPatch,
+        monkeypatch_function: pytest.MonkeyPatch,
         df_write_parquet: pl.functions,
         mock_polars_io: GCSFileSystem,
-        storage_env: BaseSettings) -> Generator:
+        storage_env: models.StorageEnv) -> typing.Generator:
 
     def _write_parquet(df: pl.DataFrame, path: str, **k: dict) -> None:
         with mock_polars_io.open(path.removeprefix(f'{storage_env.PROTOCOL}://'), 'wb') as f:
