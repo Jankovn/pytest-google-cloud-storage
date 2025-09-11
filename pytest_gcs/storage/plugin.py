@@ -79,7 +79,12 @@ def storage_emulator(
     if cicd_env.ENV == '0':
         docker_client = docker.from_env()
         try:
-            docker_client.containers.get('storage_emulator')
+            _id = docker_client.containers.get('storage_emulator')
+            if _id.attrs['State']['Running'] and _id.attrs['State']['Paused']:
+                _id.unpause()
+            elif not _id.attrs['State']['Running']:
+                _id.remove()
+                raise NotFound
         except NotFound:
             container = docker_client.containers.run(
                 "fsouza/fake-gcs-server",

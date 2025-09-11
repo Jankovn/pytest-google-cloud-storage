@@ -31,12 +31,12 @@ classifiers = [
 ]
 
 dependencies = [
-    "pytest == 8.3.5",
-    "pytest-cov == 6.1.1",
-    "docker == 7.1.0",
-    "pydantic == 2.11.4",
-    "pydantic-settings == 2.9.1",
-    "gcsfs == 2025.5.0"
+    "pytest >= 8.0.0",
+    "pytest-cov >= 6.0.0",
+    "docker >= 7.0.0",
+    "pydantic >= 2.11.0",
+    "pydantic-settings >= 2.9.0",
+    "gcsfs >= 2025.2.0"
 ]
 
 [project.urls]
